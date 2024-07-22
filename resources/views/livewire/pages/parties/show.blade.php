@@ -75,7 +75,7 @@ new class extends Component {
 
     startCountdown() {
         this.checkAndUpdate();
-        setInterval(() => this.checkLiveStatus(), 1000);
+        setInterval(() => this.checkAndUpdate(), 1000);
     },
 
     checkAndUpdate() {
@@ -215,14 +215,44 @@ new class extends Component {
                 </div>
             </div>
         </div>
-        <div x-cloak x-show="isLive">
-            <div>{{ $listeningParty->podcast->title }}</div>
-            <div>{{ $listeningParty->episode->title }}</div>
-            <div>Current Time: <span x-text="formatTime(currentTime)"></span></div>
-            <div>Start Time: {{ $listeningParty->start_time }}</div>
-            <div x-show="isLoading">Loading...</div>
-            <x-button x-show="!isReady" class="w-full mt-8" @click="joinAndBeReady()">Join and Be
-                Ready</x-button>
+        <div x-cloak x-show="isLive" class="flex items-center justify-center min-h-screen bg-emerald-50">
+            <div class="w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
+                <div class="flex items-center space-x-4">
+                    <div class="flex-shrink-0">
+                        <x-avatar src="{{ $listeningParty->episode->podcast->artwork_url }}" size="xl"
+                            rounded="sm" alt="Podcast Artwork" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-lg font-semibold truncate text-slate-900">
+                            {{ $listeningParty->name }}</p>
+                        <p class="max-w-xs text-sm truncate text-slate-600">
+                            {{ $listeningParty->episode->title }}</p>
+                        <p class="text-xs tracking-tighter uppercase text-slate-400">
+                            {{ $listeningParty->episode->podcast->title }}</p>
+                    </div>
+                </div>
+                <div x-show="!isLoading">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-slate-700" x-text="formatTime(currentTime)"></span>
+                        <span class="text-sm text-slate-700">
+                            @php
+                                $duration = $listeningParty->start_time->diffInSeconds($listeningParty->end_time);
+                                $minutes = floor($duration / 60);
+                                $seconds = $duration % 60;
+                            @endphp
+                            {{ sprintf('%02d:%02d', $minutes, $seconds) }}
+                        </span>
+                    </div>
+                    <div class="h-2 rounded-lg bg-emerald-100">
+                        <div class="h-2 rounded-lg bg-emerald-500"
+                            :style="`width: ${(currentTime / audio.duration) * 100}%`">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6" x-show="!isReady">
+                    <x-button class="w-full" @click="joinAndBeReady()">Join and Be Ready</x-button>
+                </div>
+            </div>
         </div>
     @endif
 </div>
