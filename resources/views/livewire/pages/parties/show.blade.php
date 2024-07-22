@@ -3,10 +3,16 @@
 use Livewire\Volt\Component;
 use App\Models\ListeningParty;
 use Livewire\Attributes\Validate;
+use App\Events\NewMessageEvent;
+use App\Events\EmojiReactionEvent;
 use App\Models\Message;
+use Livewire\Attributes\On;
 
 new class extends Component {
     public ListeningParty $listeningParty;
+
+    public $userId;
+    public $emojis = [];
 
     public $isFinished = false;
 
@@ -19,6 +25,26 @@ new class extends Component {
         return redirect()->route('register');
     }
 
+    public function sendEmoji($emoji)
+    {
+        $newEmoji = [
+            'id' => uniqid(),
+            'emoji' => $emoji,
+            'x' => rand(100, 300),
+            'y' => rand(100, 300),
+        ];
+
+        event(new EmojiReactionEvent($this->listeningParty->id, $newEmoji, $this->userId));
+    }
+
+    #[On('echo:listening-party.{listeningParty.id},.emoji-reaction')]
+    public function receiveEmoji($payload)
+    {
+        if ($payload['userId'] !== $this->userId) {
+            $this->emojis[] = $payload['emoji'];
+        }
+    }
+
     public function sendMessage()
     {
         $this->validate();
@@ -28,13 +54,33 @@ new class extends Component {
             'message' => $this->message,
         ]);
 
+        event(new NewMessageEvent($this->listeningParty->id, $this->message));
+
         $this->message = '';
+    }
+
+    public function getListeners(): array
+    {
+        return [
+            'echo:listening-party.{listeningParty.id},.new-message' => 'refresh',
+        ];
     }
 
     public function mount(ListeningParty $listeningParty)
     {
         if ($this->listeningParty->end_time && $this->listeningParty->end_time->isPast()) {
             $this->isFinished = true;
+        }
+
+        if (!auth()->check()) {
+            if (!Session::has('user_id')) {
+                $this->userId = uniqid('user_', true);
+                Session::put('user_id', $this->userId);
+            } else {
+                $this->userId = Session::get('user_id');
+            }
+        } else {
+            $this->userId = auth()->id();
         }
 
         $this->listeningParty->load('episode.podcast', 'messages.user');
@@ -60,13 +106,16 @@ new class extends Component {
     startTimestamp: {{ $listeningParty->start_time->timestamp }},
     endTimestamp: {{ $listeningParty->end_time ? $listeningParty->end_time->timestamp : 'null' }},
     copyNotification: false,
-    emojis: [],
-    addEmoji(emoji, x, y) {
-        const id = Date.now();
-        this.emojis.push({ id, emoji, x, y });
-        setTimeout(() => {
-            this.emojis = this.emojis.filter(e => e.id !== id);
-        }, 1000);
+    emojis: @entangle('emojis'),
+    addEmoji(emoji, event) {
+        const newEmoji = {
+            id: Date.now(),
+            emoji: emoji,
+            x: event.clientX,
+            y: event.clientY,
+        };
+        this.emojis.push(newEmoji);
+        $wire.sendEmoji(emoji);
     },
 
 
@@ -104,6 +153,7 @@ new class extends Component {
         });
 
         this.audio.addEventListener('ended', () => {
+            this.isPlaying = false;
             this.finishListeningParty();
         });
     },
@@ -201,9 +251,9 @@ new class extends Component {
     @elseif($isFinished)
         <div class="flex items-center justify-center min-h-screen bg-emerald-50">
             <div class="w-full max-w-2xl p-8 mx-8 text-center bg-white rounded-lg shadow-lg">
-                <h2 class="mb-4 text-2xl font-bold text-slate-900">This listening party has finished</h2>
-                <p class="text-slate-600">Thank you for joining the {{ $listeningParty->name }} listening party.</p>
-                <p class="mt-2 text-slate-600">The podcast "{{ $listeningParty->episode->title }}" is no longer live.
+                <h2 class="mb-4 font-serif text-2xl font-bold text-slate-900">This listening party has finished 🥲</h2>
+                <p class="mt-2 text-slate-600">The awwd.io room <span
+                        class="font-bold">{{ $listeningParty->name }}</span> is no longer live.
                 </p>
             </div>
         </div>
@@ -319,7 +369,7 @@ new class extends Component {
                         <div class="p-4 bg-white rounded-lg shadow-lg">
                             <div class="grid grid-cols-6 gap-2">
                                 @foreach (['👍', '❤️', '😂', '😮', '😢', '😡'] as $emoji)
-                                    <button @click="addEmoji('{{ $emoji }}', $event.clientX, $event.clientY)"
+                                    <button @click="addEmoji('{{ $emoji }}', $event)"
                                         class="p-2 text-2xl transition-colors rounded-full hover:bg-emerald-100">
                                         {{ $emoji }}
                                     </button>
@@ -340,7 +390,8 @@ new class extends Component {
                             <div class="flex flex-col justify-end flex-1 p-4 overflow-y-auto" id="message-container">
                                 <div class="space-y-0.5">
                                     @foreach ($messages as $message)
-                                        <div class="px-2 py-2 rounded hover:bg-slate-100">
+                                        <div class="px-2 py-2 rounded hover:bg-slate-100"
+                                            wire:key="{{ $message->id }}">
                                             <div class="flex items-center">
                                                 <x-avatar xs
                                                     label="{{ strtoupper(substr($message->user->name, 0, 1)) }}" />
@@ -358,8 +409,8 @@ new class extends Component {
                             <div class="p-4 border-t">
                                 @auth
                                     <form class="flex space-x-2" wire:submit='sendMessage'>
-                                        <input type="text" placeholder="Type your message..." wire:model='message'
-                                            class="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        <x-input type="text" placeholder="Type your message..." wire:model='message'
+                                            class="w-full" />
                                         <x-button primary label="Send" type="submit" />
                                     </form>
                                 @else

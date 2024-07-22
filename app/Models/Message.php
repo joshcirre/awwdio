@@ -16,4 +16,9 @@ class Message extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function listeningParty(): BelongsTo
+    {
+        return $this->belongsTo(ListeningParty::class);
+    }
 }
