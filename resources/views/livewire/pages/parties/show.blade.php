@@ -4,14 +4,36 @@ use Livewire\Volt\Component;
 use App\Models\ListeningParty;
 use Livewire\Attributes\Validate;
 use App\Models\Message;
+use App\Events\EmojiReactionEvent;
+use Livewire\Attributes\On;
 
 new class extends Component {
     public ListeningParty $listeningParty;
-
+    public $userId;
     public $isFinished = false;
+    public $emojis = [];
 
     #[Validate('required|string|max:255')]
     public $message = '';
+
+    public function sendEmoji($emoji)
+    {
+        $newEmoji = [
+            'id' => uniqid(),
+            'emoji' => $emoji,
+            'x' => rand(100, 300),
+            'y' => rand(100, 300),
+        ];
+        event(new EmojiReactionEvent($this->listeningParty->id, $newEmoji, $this->userId));
+    }
+
+    #[On('echo:listening-party.{listeningParty.id},.emoji-reaction')]
+    public function receiveEmoji($payload)
+    {
+        if ($payload['userId'] !== $this->userId) {
+            $this->emojis[] = $payload['emoji'];
+        }
+    }
 
     public function authenticateUser()
     {
@@ -37,6 +59,17 @@ new class extends Component {
             $this->isFinished = true;
         }
 
+        if (!auth()->check()) {
+            if (!Session::has('user_id')) {
+                $this->userId = uniqid('user_', true);
+                Session::put('user_id', $this->userId);
+            } else {
+                $this->userId = Session::get('user_id');
+            }
+        } else {
+            $this->userId = auth()->id();
+        }
+
         $this->listeningParty->load('episode.podcast', 'messages.user');
     }
 
@@ -60,15 +93,17 @@ new class extends Component {
     startTimestamp: {{ $listeningParty->start_time->timestamp }},
     endTimestamp: {{ $listeningParty->end_time ? $listeningParty->end_time->timestamp : 'null' }},
     copyNotification: false,
-    emojis: [],
-    addEmoji(emoji, x, y) {
-        const id = Date.now();
-        this.emojis.push({ id, emoji, x, y });
-        setTimeout(() => {
-            this.emojis = this.emojis.filter(e => e.id !== id);
-        }, 1000);
+    emojis: @entangle('emojis'),
+    handleEmojiClick(emoji, event) {
+        const newEmoji = {
+            id: Date.now().toString(),
+            emoji: emoji,
+            x: event.clientX,
+            y: event.clientY
+        };
+        this.emojis.push(newEmoji);
+        $wire.sendEmoji(emoji);
     },
-
 
     init() {
         this.startCountdown();
@@ -105,6 +140,7 @@ new class extends Component {
 
         this.audio.addEventListener('ended', () => {
             this.finishListeningParty();
+            this.isPlaying = false;
         });
     },
 
@@ -201,9 +237,9 @@ new class extends Component {
     @elseif($isFinished)
         <div class="flex items-center justify-center min-h-screen bg-emerald-50">
             <div class="w-full max-w-2xl p-8 mx-8 text-center bg-white rounded-lg shadow-lg">
-                <h2 class="mb-4 text-2xl font-bold text-slate-900">This listening party has finished</h2>
-                <p class="text-slate-600">Thank you for joining the {{ $listeningParty->name }} listening party.</p>
-                <p class="mt-2 text-slate-600">The podcast "{{ $listeningParty->episode->title }}" is no longer live.
+                <h2 class="mb-4 font-serif text-2xl font-bold text-slate-900">This listening party has finished 🥲</h2>
+                <p class="mt-2 text-slate-600">The awwd.io room <span
+                        class="font-bold">{{ $listeningParty->name }}</span> is no longer live.
                 </p>
             </div>
         </div>
@@ -316,16 +352,16 @@ new class extends Component {
                         </div>
 
                         <!-- Emoji Picker -->
-                        <div class="p-4 bg-white rounded-lg shadow-lg">
-                            <div class="grid grid-cols-6 gap-2">
-                                @foreach (['👍', '❤️', '😂', '😮', '😢', '😡'] as $emoji)
-                                    <button @click="addEmoji('{{ $emoji }}', $event.clientX, $event.clientY)"
-                                        class="p-2 text-2xl transition-colors rounded-full hover:bg-emerald-100">
-                                        {{ $emoji }}
-                                    </button>
-                                @endforeach
-                            </div>
+                        <div class="grid grid-cols-6 gap-2">
+                            @foreach (['👍', '❤️', '😂', '😮', '😢', '😡'] as $emoji)
+                                <button @click="handleEmojiClick('{{ $emoji }}', $event)"
+                                    class="p-2 text-2xl transition-colors rounded-full hover:bg-emerald-100">
+                                    {{ $emoji }}
+                                </button>
+                            @endforeach
                         </div>
+
+                        <!-- Emoji Animation Container -->
                         <div class="fixed inset-0 pointer-events-none" aria-hidden="true">
                             <template x-for="emoji in emojis" :key="emoji.id">
                                 <div class="absolute text-4xl animate-fall"
