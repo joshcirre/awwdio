@@ -2,18 +2,49 @@
 
 use Livewire\Volt\Component;
 use App\Models\ListeningParty;
+use Livewire\Attributes\Validate;
+use App\Models\Message;
 
 new class extends Component {
     public ListeningParty $listeningParty;
 
     public $isFinished = false;
 
+    #[Validate('required|string|max:255')]
+    public $message = '';
+
+    public function authenticateUser()
+    {
+        session()->put('auth_redirect', route('parties.show', $this->listeningParty));
+        return redirect()->route('register');
+    }
+
+    public function sendMessage()
+    {
+        $this->validate();
+
+        $this->listeningParty->messages()->create([
+            'user_id' => auth()->user()->id,
+            'message' => $this->message,
+        ]);
+
+        $this->message = '';
+    }
+
     public function mount(ListeningParty $listeningParty)
     {
         if ($this->listeningParty->end_time && $this->listeningParty->end_time->isPast()) {
             $this->isFinished = true;
         }
-        $this->listeningParty = $listeningParty->load('episode.podcast');
+
+        $this->listeningParty->load('episode.podcast', 'messages.user');
+    }
+
+    public function with()
+    {
+        return [
+            'messages' => $this->listeningParty->messages()->with('user')->orderBy('created_at', 'asc')->get(),
+        ];
     }
 }; ?>
 
@@ -29,6 +60,15 @@ new class extends Component {
     startTimestamp: {{ $listeningParty->start_time->timestamp }},
     endTimestamp: {{ $listeningParty->end_time ? $listeningParty->end_time->timestamp : 'null' }},
     copyNotification: false,
+    emojis: [],
+    addEmoji(emoji, x, y) {
+        const id = Date.now();
+        this.emojis.push({ id, emoji, x, y });
+        setTimeout(() => {
+            this.emojis = this.emojis.filter(e => e.id !== id);
+        }, 1000);
+    },
+
 
 
     init() {
@@ -229,60 +269,110 @@ new class extends Component {
 
 
         <div x-show="isLive" x-cloak class="flex items-center justify-center min-h-screen bg-emerald-50">
-            <div class="w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
-                <div class="flex items-center mb-6 space-x-4">
-                    <div class="flex-shrink-0">
-                        <x-avatar src="{{ $listeningParty->episode->podcast->artwork_url }}" size="xl"
-                            rounded="sm" alt="Podcast Artwork" />
+            <div class="w-full max-w-6xl p-6 space-y-6">
+                <div class="flex space-x-6">
+                    <!-- Left Column: Listening Party Info and Emoji Picker -->
+                    <div class="w-1/2 space-y-6">
+                        <!-- Listening Party Info -->
+                        <div class="p-6 bg-white rounded-lg shadow-lg">
+                            <div class="flex items-center mb-6 space-x-4">
+                                <div class="flex-shrink-0">
+                                    <x-avatar src="{{ $listeningParty->episode->podcast->artwork_url }}" size="xl"
+                                        rounded="sm" alt="Podcast Artwork" />
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-lg font-semibold truncate text-slate-900">
+                                        {{ $listeningParty->name }}</p>
+                                    <p class="text-sm truncate text-slate-600">{{ $listeningParty->episode->title }}
+                                    </p>
+                                    <p class="text-xs tracking-tighter uppercase text-slate-400">
+                                        {{ $listeningParty->episode->podcast->title }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="mb-6" x-show="audioMetadataLoaded">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span x-text="formatTime(currentTime)" class="text-sm text-slate-600"></span>
+                                    <span class="text-sm text-slate-600">
+                                        @php
+                                            $duration = $listeningParty->start_time->diffInSeconds(
+                                                $listeningParty->end_time,
+                                            );
+                                            $minutes = floor($duration / 60);
+                                            $seconds = $duration % 60;
+                                        @endphp
+                                        {{ sprintf('%02d:%02d', $minutes, $seconds) }}
+                                    </span>
+                                </div>
+                                <div class="h-2 rounded-full bg-emerald-100">
+                                    <div class="h-2 rounded-full bg-emerald-500"
+                                        :style="`width: ${(currentTime / audio.duration) * 100}%`"></div>
+                                </div>
+                            </div>
+
+                            <div x-show="!isPlaying" class="mt-6">
+                                <x-button class="w-full" primary label="Join Listening Party" />
+                            </div>
+                        </div>
+
+                        <!-- Emoji Picker -->
+                        <div class="p-4 bg-white rounded-lg shadow-lg">
+                            <div class="grid grid-cols-6 gap-2">
+                                @foreach (['👍', '❤️', '😂', '😮', '😢', '😡'] as $emoji)
+                                    <button @click="addEmoji('{{ $emoji }}', $event.clientX, $event.clientY)"
+                                        class="p-2 text-2xl transition-colors rounded-full hover:bg-emerald-100">
+                                        {{ $emoji }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div class="fixed inset-0 pointer-events-none" aria-hidden="true">
+                            <template x-for="emoji in emojis" :key="emoji.id">
+                                <div class="absolute text-4xl animate-fall"
+                                    :style="`left: ${emoji.x}px; top: ${emoji.y}px;`" x-text="emoji.emoji"></div>
+                            </template>
+                        </div>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-lg font-semibold truncate text-slate-900">
-                            {{ $listeningParty->name }}
-                        </p>
-                        <p class="text-sm truncate text-slate-600">
-                            {{ $listeningParty->episode->title }}
-                        </p>
-                        <p class="text-xs tracking-tighter uppercase text-slate-400">
-                            {{ $listeningParty->episode->podcast->title }}
-                        </p>
+
+                    <!-- Right Column: Chat Room -->
+                    <div class="w-1/2">
+                        <div class="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
+                            <div class="flex flex-col justify-end flex-1 p-4 overflow-y-auto" id="message-container">
+                                <div class="space-y-0.5">
+                                    @foreach ($messages as $message)
+                                        <div class="px-2 py-2 rounded hover:bg-slate-100">
+                                            <div class="flex items-center">
+                                                <x-avatar xs
+                                                    label="{{ strtoupper(substr($message->user->name, 0, 1)) }}" />
+                                                <div class="flex items-center ml-2 space-x-2">
+                                                    <span
+                                                        class="text-xs font-bold text-slate-900">{{ $message->user->name }}:</span>
+                                                    <p class="text-sm text-slate-700">{{ $message->message }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="p-4 border-t">
+                                @auth
+                                    <form class="flex space-x-2" wire:submit='sendMessage'>
+                                        <input type="text" placeholder="Type your message..." wire:model='message'
+                                            class="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        <x-button primary label="Send" type="submit" />
+                                    </form>
+                                @else
+                                    <x-button wire:click="authenticateUser" label="Login to Chat" class="w-full" />
+                                @endauth
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                <div class="mb-6" x-show="audioMetadataLoaded">
-                    <div class="flex items-center justify-between mb-2">
-                        <span x-text="formatTime(currentTime)" class="text-sm text-slate-600"></span>
-                        <span class="text-sm text-slate-600">
-                            @php
-                                $duration = $listeningParty->start_time->diffInSeconds($listeningParty->end_time);
-                                $minutes = floor($duration / 60);
-                                $seconds = $duration % 60;
-                            @endphp
-                            {{ sprintf('%02d:%02d', $minutes, $seconds) }}
-                        </span>
 
 
-                    </div>
-                    <div class="h-2 rounded-full bg-emerald-100">
-                        <div class="h-2 rounded-full bg-emerald-500"
-                            :style="`width: ${(currentTime / audio.duration) * 100}%`"></div>
-                    </div>
-                </div>
-
-
-                <div class="mt-6" x-show="!isPlaying">
-                    <x-button class="w-full" @click="playAudio()">Join Listening Party</x-button>
                 </div>
             </div>
         </div>
     @endif
-    <div class="fixed bottom-0 left-0 right-0 p-2 mx-auto bg-white rounded-t-lg shadow-lg max-w-64">
-        <div class="flex justify-center space-x-4">
-            @foreach (['👍', '❤️', '😂', '😮', '😢', '😡'] as $emoji)
-                <button wire:click="sendEmoji('{{ $emoji }}')"
-                    class="text-2xl transition-transform hover:scale-125">
-                    {{ $emoji }}
-                </button>
-            @endforeach
-        </div>
-    </div>
 </div>

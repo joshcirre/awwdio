@@ -74,8 +74,8 @@ new class extends Component {
                     <x-input wire:model='name' placeholder="Listening Party Name" />
                     <x-input wire:model='mediaUrl' placeholder="Podcast RSS Feed URL"
                         description="Entering the RSS Feed URL will grab the latest episode" />
-                    <x-datetime-picker wire:model='startTime' placeholder="Listening Party Start Time" :min="now()->subDays(1)"
-                        requires-confirmation />
+                    <x-datetime-picker wire:model='startTime' placeholder="Listening Party Start Time"
+                        :min="now()->subDays(1)" />
                     <x-button type="submit" class="w-full">Create Listening Party</x-button>
                 </form>
             </x-card>
