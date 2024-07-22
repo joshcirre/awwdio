@@ -20,7 +20,7 @@
 
 <body class="font-sans antialiased bg-emerald-50">
     <h1 class="mt-8 text-3xl text-center font-cursive text-slate-800">🫶 awwd.io</h1>
-    <livewire:dashboard />
+    <livewire:dashboard lazy />
 </body>
 
 </html>

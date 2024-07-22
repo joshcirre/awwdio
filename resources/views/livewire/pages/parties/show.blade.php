@@ -2,13 +2,40 @@
 
 use Livewire\Volt\Component;
 use App\Models\ListeningParty;
+use Livewire\Attributes\Lazy;
 
-new class extends Component {
+new #[Lazy] class extends Component {
     public ListeningParty $listeningParty;
+
+    public $isFinished = false;
 
     public function mount(ListeningParty $listeningParty)
     {
+        if ($this->listeningParty->end_time && $this->listeningParty->end_time->isPast()) {
+            $this->isFinished = true;
+        }
         $this->listeningParty = $listeningParty->load('episode.podcast');
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <div class="flex items-center justify-center min-h-screen bg-emerald-50">
+
+                <div class="flex items-center justify-center space-x-8">
+                    <div class="relative flex items-center justify-center w-16 h-16">
+                        <span
+                            class="absolute inline-flex rounded-full opacity-75 size-10 bg-emerald-400 animate-ping"></span>
+                        <span
+                            class="relative inline-flex items-center justify-center text-2xl font-bold text-white rounded-full size-12 bg-emerald-500">
+                            🫶
+                            </svg>
+                        </span>
+                    </div>
+
+            </div>
+        </div>
+        HTML;
     }
 }; ?>
 
@@ -21,11 +48,12 @@ new class extends Component {
     isReady: false,
     currentTime: 0,
     startTimestamp: {{ $listeningParty->start_time->timestamp }},
+    endTimestamp: {{ $listeningParty->end_time ? $listeningParty->end_time->timestamp : 'null' }},
     copyNotification: false,
 
     init() {
         this.startCountdown();
-        if (this.$refs.audioPlayer) {
+        if (this.$refs.audioPlayer && !this.isFinished) {
             this.initializeAudioPlayer();
         }
     },
@@ -39,6 +67,9 @@ new class extends Component {
 
         this.audio.addEventListener('timeupdate', () => {
             this.currentTime = this.audio.currentTime;
+            if (this.endTimestamp && this.currentTime >= (this.endTimestamp - this.startTimestamp)) {
+                this.finishListeningParty();
+            }
         });
 
         this.audio.addEventListener('play', () => {
@@ -49,6 +80,19 @@ new class extends Component {
         this.audio.addEventListener('pause', () => {
             this.isPlaying = false;
         });
+
+        this.audio.addEventListener('ended', () => {
+            this.finishListeningParty();
+        });
+    },
+
+    finishListeningParty() {
+        $wire.isFinished = true;
+        $wire.$refresh();
+        this.isPlaying = false;
+        if (this.audio) {
+            this.audio.pause();
+        }
     },
 
     startCountdown() {
@@ -63,7 +107,7 @@ new class extends Component {
         if (timeUntilStart <= 0) {
             this.isLive = true;
             this.countdownText = 'Live';
-            if (this.audio && !this.isPlaying) {
+            if (this.audio && !this.isPlaying && !this.isFinished) {
                 this.playAudio();
             }
         } else {
@@ -89,7 +133,7 @@ new class extends Component {
 
     joinAndBeReady() {
         this.isReady = true;
-        if (this.isLive && this.audio) {
+        if (this.isLive && this.audio && !this.isFinished) {
             this.playAudio();
         }
     },
@@ -132,13 +176,20 @@ new class extends Component {
                 </div>
             </div>
         </div>
+    @elseif($isFinished)
+        <div class="flex items-center justify-center min-h-screen bg-emerald-50">
+            <div class="w-full max-w-2xl p-8 mx-8 text-center bg-white rounded-lg shadow-lg">
+                <h2 class="mb-4 text-2xl font-bold text-slate-900">This listening party has finished</h2>
+                <p class="text-slate-600">Thank you for joining the {{ $listeningParty->name }} listening party.</p>
+                <p class="mt-2 text-slate-600">The podcast "{{ $listeningParty->episode->title }}" is no longer live.
+                </p>
+            </div>
+        </div>
     @else
         <audio x-ref="audioPlayer" :src="'{{ $listeningParty->episode->media_url }}'" preload="auto"></audio>
 
-        <div x-show="!isLive" class="flex items-center justify-center min-h-screen bg-emerald-50">
+        <div x-show="!isLive" class="flex items-center justify-center min-h-screen bg-emerald-50" x-cloak>
             <div class="relative w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
-
-
                 <div class="flex items-center space-x-4">
                     <div class="flex-shrink-0">
                         <x-avatar src="{{ $listeningParty->episode->podcast->artwork_url }}" size="xl"
@@ -193,7 +244,7 @@ new class extends Component {
         </div>
 
 
-        <div x-show="isLive">
+        <div x-show="isLive" x-cloak>
             <div>{{ $listeningParty->podcast->title }}</div>
             <div>{{ $listeningParty->episode->title }}</div>
             <div>Current Time: <span x-text="formatTime(currentTime)"></span></div>
