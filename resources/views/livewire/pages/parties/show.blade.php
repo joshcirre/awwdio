@@ -405,8 +405,8 @@ new class extends Component {
                             <div class="p-4 border-t">
                                 @auth
                                     <form class="flex space-x-2" wire:submit='sendMessage'>
-                                        <input type="text" placeholder="Type your message..." wire:model='message'
-                                            class="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        <x-input type="text" placeholder="Type your message..." wire:model='message'
+                                            class="w-full" />
                                         <x-button primary label="Send" type="submit" />
                                     </form>
                                 @else
