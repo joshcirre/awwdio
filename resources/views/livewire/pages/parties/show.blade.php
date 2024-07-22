@@ -7,6 +7,7 @@ use App\Models\Message;
 
 new class extends Component {
     public ListeningParty $listeningParty;
+    public $isFinished = false;
 
     public $isFinished = false;
 
@@ -33,6 +34,7 @@ new class extends Component {
 
     public function mount(ListeningParty $listeningParty)
     {
+
         if ($this->listeningParty->end_time && $this->listeningParty->end_time->isPast()) {
             $this->isFinished = true;
         }
@@ -68,9 +70,6 @@ new class extends Component {
             this.emojis = this.emojis.filter(e => e.id !== id);
         }, 1000);
     },
-
-
-
     init() {
         this.startCountdown();
         if (this.$refs.audioPlayer && !this.isFinished) {
@@ -119,8 +118,8 @@ new class extends Component {
     },
 
     startCountdown() {
-        this.checkLiveStatus();
-        setInterval(() => this.checkLiveStatus(), 1000);
+        this.checkAndUpdate();
+        setInterval(() => this.checkAndUpdate(), 1000);
     },
 
     checkLiveStatus() {
@@ -129,7 +128,6 @@ new class extends Component {
 
         if (timeUntilStart <= 0) {
             this.isLive = true;
-            this.countdownText = 'Live';
             if (this.audio && !this.isPlaying && !this.isFinished) {
                 this.playAudio();
             }
@@ -174,7 +172,6 @@ new class extends Component {
             this.copyNotification = false;
         }, 3000);
     },
-
 }" x-init="init()">
     @if ($listeningParty->end_time === null)
         <div class="flex items-center justify-center min-h-screen bg-emerald-50" wire:poll.5s>
@@ -202,16 +199,14 @@ new class extends Component {
     @elseif($isFinished)
         <div class="flex items-center justify-center min-h-screen bg-emerald-50">
             <div class="w-full max-w-2xl p-8 mx-8 text-center bg-white rounded-lg shadow-lg">
-                <h2 class="mb-4 text-2xl font-bold text-slate-900">This listening party has finished</h2>
-                <p class="text-slate-600">Thank you for joining the {{ $listeningParty->name }} listening party.</p>
-                <p class="mt-2 text-slate-600">The podcast "{{ $listeningParty->episode->title }}" is no longer live.
+                <h2 class="mb-4 font-serif text-2xl font-bold text-slate-900">This listening party has finished 🥲</h2>
+                <p class="mt-2 text-slate-600">The awwd.io room <span
+                        class="font-bold">{{ $listeningParty->name }}</span> is no longer live.
                 </p>
             </div>
         </div>
     @else
         <audio x-ref="audioPlayer" :src="'{{ $listeningParty->episode->media_url }}'" preload="auto"></audio>
-
-
         <div x-show="!isLive" class="flex items-center justify-center min-h-screen bg-emerald-50" x-cloak>
             <div class="relative w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
                 <div class="flex items-center space-x-4">
@@ -230,21 +225,17 @@ new class extends Component {
                         </div>
                     </div>
                 </div>
-
                 <div class="mt-6 text-center">
                     <p class="font-serif font-semibold tracking-tight text-slate-600">Starting in:</p>
                     <p class="font-mono text-3xl font-semibold tracking-wider text-emerald-700" x-text="countdownText">
                     </p>
                 </div>
-
                 <div class="mt-6">
                     <x-button x-show="!isReady" class="w-full" @click="joinAndBeReady()">Join and Be Ready</x-button>
                 </div>
-
                 <h2 x-show="isReady"
                     class="mt-8 font-serif text-lg tracking-tight text-center text-slate-900 font-bolder">
                     Ready to start the awwd.io party! Stay tuned. 🫶</h2>
-
                 <div class="flex items-center justify-end mt-8">
                     <button @click="copyToClipboard();"
                         class="flex items-center justify-center w-auto h-8 px-3 py-1 text-xs bg-white border rounded-md cursor-pointer border-neutral-200/60 hover:bg-neutral-100 active:bg-white focus:bg-white focus:outline-none text-neutral-500 hover:text-neutral-600 group">
@@ -266,8 +257,6 @@ new class extends Component {
                 </div>
             </div>
         </div>
-
-
         <div x-show="isLive" x-cloak class="flex items-center justify-center min-h-screen bg-emerald-50">
             <div class="w-full max-w-6xl p-6 space-y-6">
                 <div class="flex space-x-6">
@@ -369,8 +358,6 @@ new class extends Component {
                             </div>
                         </div>
                     </div>
-
-
                 </div>
             </div>
         </div>
