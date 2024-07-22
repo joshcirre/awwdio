@@ -35,6 +35,7 @@ new class extends Component {
 
         this.audio.addEventListener('play', () => {
             this.isPlaying = true;
+            this.isReady = true;
         });
 
         this.audio.addEventListener('pause', () => {
@@ -47,11 +48,10 @@ new class extends Component {
         const timeUntilStart = this.startTimestamp - now;
 
         if (timeUntilStart <= 0) {
+            this.isLive = true;
             if (!this.isPlaying) {
                 this.isLive = true;
-                if (this.isReady) {
-                    this.audio.play().catch(error => console.error('Playback failed:', error));
-                }
+                this.playAudio();
             }
         } else {
             const days = Math.floor(timeUntilStart / 86400);
@@ -70,17 +70,15 @@ new class extends Component {
         this.audio.play().catch(error => {
             console.error('Playback failed:', error);
             this.isPlaying = false;
+            this.isReady = false;
         });
     },
 
     joinAndBeReady() {
         this.isReady = true;
-        this.audio.play().then(() => {
-            this.audio.pause();
-        }).catch(error => {
-            console.error('Playback failed:', error);
-            this.isPlaying = false;
-        });
+        if (this.isLive) {
+            this.playAudio();
+        }
     },
 
     formatTime(seconds) {
@@ -134,6 +132,7 @@ new class extends Component {
             <div>Current Time: <span x-text="formatTime(currentTime)"></span></div>
             <div>Start Time: {{ $listeningParty->start_time }}</div>
             <div x-show="isLoading">Loading...</div>
+            <x-button x-show="!isReady" class="w-full mt-8" @click="joinAndBeReady()">Join and Be Ready</x-button>
         </div>
     @endif
 </div>
