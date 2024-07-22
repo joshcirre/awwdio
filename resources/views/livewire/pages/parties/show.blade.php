@@ -2,9 +2,8 @@
 
 use Livewire\Volt\Component;
 use App\Models\ListeningParty;
-use Livewire\Attributes\Lazy;
 
-new #[Lazy] class extends Component {
+new class extends Component {
     public ListeningParty $listeningParty;
 
     public $isFinished = false;
@@ -16,27 +15,6 @@ new #[Lazy] class extends Component {
         }
         $this->listeningParty = $listeningParty->load('episode.podcast');
     }
-
-    public function placeholder()
-    {
-        return <<<'HTML'
-        <div class="flex items-center justify-center min-h-screen bg-emerald-50">
-
-                <div class="flex items-center justify-center space-x-8">
-                    <div class="relative flex items-center justify-center w-16 h-16">
-                        <span
-                            class="absolute inline-flex rounded-full opacity-75 size-10 bg-emerald-400 animate-ping"></span>
-                        <span
-                            class="relative inline-flex items-center justify-center text-2xl font-bold text-white rounded-full size-12 bg-emerald-500">
-                            🫶
-                            </svg>
-                        </span>
-                    </div>
-
-            </div>
-        </div>
-        HTML;
-    }
 }; ?>
 
 <div x-data="{
@@ -46,10 +24,12 @@ new #[Lazy] class extends Component {
     isPlaying: false,
     countdownText: '',
     isReady: false,
+    audioMetadataLoaded: false,
     currentTime: 0,
     startTimestamp: {{ $listeningParty->start_time->timestamp }},
     endTimestamp: {{ $listeningParty->end_time ? $listeningParty->end_time->timestamp : 'null' }},
     copyNotification: false,
+
 
     init() {
         this.startCountdown();
@@ -62,6 +42,9 @@ new #[Lazy] class extends Component {
         this.audio = this.$refs.audioPlayer;
         this.audio.addEventListener('loadedmetadata', () => {
             this.isLoading = false;
+            this.audioMetadataLoaded = true;
+            console.log('Audio duration after metadata loaded:', this.audio.duration);
+
             this.checkLiveStatus();
         });
 
@@ -150,7 +133,7 @@ new #[Lazy] class extends Component {
         setTimeout(() => {
             this.copyNotification = false;
         }, 3000);
-    }
+    },
 
 }" x-init="init()">
     @if ($listeningParty->end_time === null)
@@ -187,6 +170,7 @@ new #[Lazy] class extends Component {
         </div>
     @else
         <audio x-ref="audioPlayer" :src="'{{ $listeningParty->episode->media_url }}'" preload="auto"></audio>
+
 
         <div x-show="!isLive" class="flex items-center justify-center min-h-screen bg-emerald-50" x-cloak>
             <div class="relative w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
@@ -244,14 +228,42 @@ new #[Lazy] class extends Component {
         </div>
 
 
-        <div x-show="isLive" x-cloak>
-            <div>{{ $listeningParty->podcast->title }}</div>
-            <div>{{ $listeningParty->episode->title }}</div>
-            <div>Current Time: <span x-text="formatTime(currentTime)"></span></div>
-            <div>Start Time: {{ $listeningParty->start_time }}</div>
-            <div x-show="isLoading">Loading...</div>
+        <div x-show="isLive" x-cloak class="flex items-center justify-center min-h-screen bg-emerald-50">
+            <div class="w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
+                <div class="flex items-center mb-6 space-x-4">
+                    <div class="flex-shrink-0">
+                        <x-avatar src="{{ $listeningParty->episode->podcast->artwork_url }}" size="xl"
+                            rounded="sm" alt="Podcast Artwork" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-lg font-semibold truncate text-slate-900">
+                            {{ $listeningParty->name }}
+                        </p>
+                        <p class="text-sm truncate text-slate-600">
+                            {{ $listeningParty->episode->title }}
+                        </p>
+                        <p class="text-xs tracking-tighter uppercase text-slate-400">
+                            {{ $listeningParty->episode->podcast->title }}
+                        </p>
+                    </div>
+                </div>
 
-            <x-button x-show="!isReady" class="w-full mt-8" @click="joinAndBeReady()">Join and Be Ready</x-button>
+                <div class="mb-6" x-show="audioMetadataLoaded">
+                    <div class="flex items-center justify-between mb-2">
+                        <span x-text="formatTime(currentTime)" class="text-sm text-slate-600"></span>
+                        <span class="text-sm text-slate-600"> {{ $listeningParty->end_time->format('i:s') }}</span>
+                    </div>
+                    <div class="h-2 rounded-full bg-emerald-100">
+                        <div class="h-2 rounded-full bg-emerald-500"
+                            :style="`width: ${(currentTime / audio.duration) * 100}%`"></div>
+                    </div>
+                </div>
+
+
+                <div class="mt-6" x-show="!isPlaying">
+                    <x-button class="w-full" @click="playAudio()">Join Listening Party</x-button>
+                </div>
+            </div>
         </div>
     @endif
 </div>
