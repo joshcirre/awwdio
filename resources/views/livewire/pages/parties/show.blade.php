@@ -251,7 +251,16 @@ new class extends Component {
                 <div class="mb-6" x-show="audioMetadataLoaded">
                     <div class="flex items-center justify-between mb-2">
                         <span x-text="formatTime(currentTime)" class="text-sm text-slate-600"></span>
-                        <span class="text-sm text-slate-600"> {{ $listeningParty->end_time->format('i:s') }}</span>
+                        <span class="text-sm text-slate-600">
+                            @php
+                                $duration = $listeningParty->start_time->diffInSeconds($listeningParty->end_time);
+                                $minutes = floor($duration / 60);
+                                $seconds = $duration % 60;
+                            @endphp
+                            {{ sprintf('%02d:%02d', $minutes, $seconds) }}
+                        </span>
+
+
                     </div>
                     <div class="h-2 rounded-full bg-emerald-100">
                         <div class="h-2 rounded-full bg-emerald-500"
@@ -266,4 +275,14 @@ new class extends Component {
             </div>
         </div>
     @endif
+    <div class="fixed bottom-0 left-0 right-0 p-2 mx-auto bg-white rounded-t-lg shadow-lg max-w-64">
+        <div class="flex justify-center space-x-4">
+            @foreach (['👍', '❤️', '😂', '😮', '😢', '😡'] as $emoji)
+                <button wire:click="sendEmoji('{{ $emoji }}')"
+                    class="text-2xl transition-transform hover:scale-125">
+                    {{ $emoji }}
+                </button>
+            @endforeach
+        </div>
+    </div>
 </div>
