@@ -98,7 +98,7 @@ new class extends Component {
         <audio x-ref="audioPlayer" :src="'{{ $listeningParty->episode->media_url }}'" preload="auto"></audio>
 
         <div x-show="!isLive" class="flex items-center justify-center min-h-screen bg-gray-100">
-            <div class="p-8 bg-white rounded-lg shadow-md max-w-2xl w-full">
+            <div class="w-full max-w-2xl p-8 bg-white rounded-lg shadow-md">
                 <div class="flex items-center space-x-4">
                     <div class="flex-shrink-0">
                         <x-avatar src="{{ $listeningParty->episode->podcast->artwork_url }}" size="xl"
@@ -117,7 +117,7 @@ new class extends Component {
                             Starts in: <span x-text="countdownText"></span>
                         </div>
                         <button x-show="!isReady" @click="joinAndBeReady()"
-                            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-4">
+                            class="px-4 py-2 mt-4 text-white bg-blue-500 rounded hover:bg-blue-600">
                             Join and be ready
                         </button>
                         <div x-show="isReady" class="mt-4 text-green-600">
@@ -136,7 +136,7 @@ new class extends Component {
             <div x-show="isLoading">Loading...</div>
 
             <button x-show="!isPlaying" @click="playAudio()"
-                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-4">
+                class="px-4 py-2 mt-4 text-white bg-blue-500 rounded hover:bg-blue-600">
                 Join and Listen
             </button>
         </div>
