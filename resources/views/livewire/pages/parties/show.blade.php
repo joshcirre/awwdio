@@ -4,6 +4,7 @@ use Livewire\Volt\Component;
 use App\Models\ListeningParty;
 use Livewire\Attributes\Validate;
 use App\Models\Message;
+use App\Events\NewMessageEvent;
 use App\Events\EmojiReactionEvent;
 use Livewire\Attributes\On;
 
@@ -50,7 +51,17 @@ new class extends Component {
             'message' => $this->message,
         ]);
 
+        event(new NewMessageEvent($this->listeningParty->id, $this->message));
+
         $this->message = '';
+    }
+
+    public function getListeners(): array
+    {
+        // receive a new message event and refresh the component
+        return [
+            'echo:listening-party.{listeningParty.id},.new-message' => 'refresh',
+        ];
     }
 
     public function mount(ListeningParty $listeningParty)
