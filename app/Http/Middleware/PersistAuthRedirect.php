@@ -16,7 +16,6 @@ class PersistAuthRedirect
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // If the session has a 'auth_redirect' key, keep it in the session permanently
         if (Session::has('auth_redirect')) {
             Session::keep('auth_redirect');
         }
